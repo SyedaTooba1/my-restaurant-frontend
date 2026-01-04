@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
-import location3NorthNazimabad from "../assets/Images/location3NorthNazimabad.png";
-import location2BoatBasin from "../assets/Images/location2BoatBasin.png";
-import location1Highway from "../assets/Images/location1Highway.png";
-import location4TipuSultan from "../assets/Images/location4TipuSultan.png";
+import location3NorthNazimabad from "../assets/images/location3NorthNazimabad.png";
+import location2BoatBasin from "../assets/images/location2BoatBasin.png";
+import location1Highway from "../assets/images/location1Highway.png";
+import location4TipuSultan from "../assets/images/Location4TipuSultan.png";
 
 export default function Hero() {
   const images = [
