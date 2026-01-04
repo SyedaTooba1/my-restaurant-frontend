@@ -15,42 +15,49 @@ export default function Navbar({ logoSrc, onMenuToggle }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <a href="/" className="flex items-center">
+            {/* Logo as Link */}
+            <Link to="/" className="flex items-center">
               {logoSrc ? (
                 <img src={logoSrc} alt="Logo" className="h-10 w-auto mr-3" />
               ) : (
                 <span className="text-xl font-bold text-gray-800">Feast Mode</span>
               )}
-            </a>
+            </Link>
           </div>
 
+          {/* Desktop links */}
           <div className="hidden md:flex items-center space-x-4">
-            <a
-              href="/"
+            <Link
+              to="/"
               className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
             >
               Home
-            </a>
+            </Link>
 
-            <a
-              href="/menu"
+            <Link
+              to="/menu"
               className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
             >
               Menu
-            </a>
+            </Link>
 
-            <a
-              href="/about"
+            <Link
+              to="/about"
               className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
             >
               About
-            </a>
+            </Link>
 
-            <Link to="/assistant" aria-label="Assistant" className="inline-flex items-center justify-center h-10 px-4 rounded-full bg-gray-800 text-white shadow-sm hover:bg-gray-700 transition">
+            <Link
+              to="/assistant"
+              aria-label="Assistant"
+              className="inline-flex items-center justify-center h-10 px-4 rounded-full bg-gray-800 text-white shadow-sm hover:bg-gray-700 transition"
+            >
               AI Assistant
             </Link>
           </div>
 
+          {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
             <button
               onClick={handleToggle}
@@ -72,18 +79,41 @@ export default function Navbar({ logoSrc, onMenuToggle }) {
         </div>
       </div>
 
+      {/* Mobile links */}
       {open && (
         <div className="md:hidden bg-white/95 border-t border-gray-100">
           <div className="px-2 pt-2 pb-3 space-y-1">
-            <a href="/" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50">
+            <Link
+              to="/"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => setOpen(false)}
+            >
               Home
-            </a>
-            <a href="/menu" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50">
+            </Link>
+
+            <Link
+              to="/menu"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => setOpen(false)}
+            >
               Menu
-            </a>
-            <a href="/assistant" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50">
-              Assistant
-            </a>
+            </Link>
+
+            <Link
+              to="/about"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => setOpen(false)}
+            >
+              About
+            </Link>
+
+            <Link
+              to="/assistant"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-gray-50"
+              onClick={() => setOpen(false)}
+            >
+              AI Assistant
+            </Link>
           </div>
         </div>
       )}
