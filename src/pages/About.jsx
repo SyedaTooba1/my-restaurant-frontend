@@ -2,9 +2,9 @@ import React from "react";
 import Navbar from "../components/Navbar";
 import ChefCard from "../components/ChefCard";
 import Reveal from "../components/Reveal";
-import chef1 from "../assets/Images/chef1.png";
-import chef2 from "../assets/Images/chef2.png";
-import chef3 from "../assets/Images/chef3.png";
+import chef1 from "../assets/images/chef1.png";
+import chef2 from "../assets/images/chef2.png";
+import chef3 from "../assets/images/chef3.png";
 
 const CHEFS = [
   {
