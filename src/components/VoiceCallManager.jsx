@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import CallButton from "./CallButton"; // adjust path if needed
 import MicButton from "./MicButton";   // adjust path if needed
 
-const WS_URL = "ws://localhost:8000/ws/audio";
+const WS_URL = "ws://175.107.202.121:5672/ws/audio";
 const SILENCE_TIMEOUT_MS = 1000; // ms of silence to consider utterance finished
 const VAD_POLL_MS = 100;         // how often to check volume (ms)
 const ABSOLUTE_START_THRESHOLD = 0.08; // absolute RMS floor (ignore anything quieter)
