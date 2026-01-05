@@ -126,7 +126,7 @@ export default function Assistant() {
 
     async function createSessionAndStart() {
       try {
-        const resp = await fetch("https://175.107.202.121:5672/sessions", {
+        const resp = await fetch("http://175.107.202.121:5672/sessions", {
           method: "POST",
         });
         if (!resp.ok) throw new Error(`Failed to create session: ${resp.status}`);
@@ -163,7 +163,7 @@ export default function Assistant() {
   async function fetchCurrentAndUpdateUI(sid) {
     if (!sid) return;
     try {
-      const resp = await fetch(`https://175.107.202.121:5672/sessions/${sid}/current`);
+      const resp = await fetch(`http://175.107.202.121:5672/sessions/${sid}/current`);
       if (!resp.ok) {
         console.warn("Failed to fetch current session data:", resp.status);
         return;
