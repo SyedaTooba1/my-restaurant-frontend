@@ -1,48 +1,229 @@
-import React, { useEffect, useRef, useState } from 'react'
-import Navbar from '../components/Navbar'
-import MicButton from '../components/MicButton'
+import React, { useEffect, useRef, useState } from "react";
+import Navbar from "../components/Navbar";
+import MicButton from "../components/MicButton";
+import VoiceCallManager from "../components/VoiceCallManager";
 
 function formatTime(ms) {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const mins = Math.floor(total / 60)
-  const secs = total % 60
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function safeString(v) {
+  if (v === undefined || v === null || v === "") return "-";
+  return String(v);
+}
+
+function parseDateCandidate(d) {
+  // Accept ISO strings or timestamps or Date objects
+  if (!d) return null;
+  try {
+    // If object with many shapes, try common keys
+    if (typeof d === "object" && d !== null) {
+      if (d.date) return new Date(d.date);
+      if (d.datetime) return new Date(d.datetime);
+      if (d.time) return new Date(d.time);
+      if (d.ts) return new Date(d.ts);
+    }
+    return new Date(d);
+  } catch {
+    return null;
+  }
+}
+
+function formatDateTimeForUI(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "-";
+  // British-style formatting
+  return date.toLocaleString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function findClosestFutureBooking(bookings = []) {
+  if (!Array.isArray(bookings) || bookings.length === 0) return null;
+  const now = Date.now();
+  let best = null;
+  let bestTs = Infinity;
+
+  for (const b of bookings) {
+    // accept booking as string, object, etc.
+    // try several fields where date might be stored
+    const candidates = [
+      b?.date,
+      b?.datetime,
+      b?.time,
+      b?.start,
+      b?.when,
+      b, // fallback if it's a plain string or timestamp
+    ];
+    for (const c of candidates) {
+      const dt = parseDateCandidate(c);
+      if (dt && dt.getTime() > now && dt.getTime() < bestTs) {
+        best = b;
+        bestTs = dt.getTime();
+      }
+    }
+  }
+
+  return best;
 }
 
 export default function Assistant() {
-  const [listening, setListening] = useState(false)
-  const [connectedSince, setConnectedSince] = useState(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-  const [disconnectNotice, setDisconnectNotice] = useState('')
-  const timerRef = useRef(null)
+  const [listening, setListening] = useState(false);
+  const [connectedSince, setConnectedSince] = useState(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [disconnectNotice, setDisconnectNotice] = useState("");
 
+  // session + polling
+  const [sessionId, setSessionId] = useState(null);
+  const pollingRef = useRef(null);
+  const timerRef = useRef(null);
+
+  // data shown in UI
+  const [customer, setCustomer] = useState({ name: "-", phone: "-", address: "-" });
+  const [orderSummary, setOrderSummary] = useState({ lines: ["-"] });
+  const [bookingUI, setBookingUI] = useState({ date: "-", guests: "-", location: "-" });
+
+  // timer for listening elapsed
   useEffect(() => {
     if (listening && connectedSince) {
       timerRef.current = setInterval(() => {
-        setElapsedMs(Date.now() - connectedSince)
-      }, 250)
-      return () => clearInterval(timerRef.current)
+        setElapsedMs(Date.now() - connectedSince);
+      }, 250);
+      return () => clearInterval(timerRef.current);
     }
-    return undefined
-  }, [listening, connectedSince])
+    return undefined;
+  }, [listening, connectedSince]);
 
   function toggleListening(next) {
     if (next) {
-      setDisconnectNotice('')
-      const now = Date.now()
-      setConnectedSince(now)
-      setListening(true)
-      setElapsedMs(0)
+      setDisconnectNotice("");
+      const now = Date.now();
+      setConnectedSince(now);
+      setListening(true);
+      setElapsedMs(0);
     } else {
       // disconnect
-      clearInterval(timerRef.current)
-      const durationMs = Date.now() - (connectedSince || Date.now())
-      const formatted = formatTime(durationMs)
-      setListening(false)
-      setConnectedSince(null)
-      setElapsedMs(0)
-      setDisconnectNotice(`Connected for ${formatted}`)
-      setTimeout(() => setDisconnectNotice(''), 3500)
+      clearInterval(timerRef.current);
+      const durationMs = Date.now() - (connectedSince || Date.now());
+      const formatted = formatTime(durationMs);
+      setListening(false);
+      setConnectedSince(null);
+      setElapsedMs(0);
+      setDisconnectNotice(`Connected for ${formatted}`);
+      setTimeout(() => setDisconnectNotice(""), 3500);
+    }
+  }
+
+  // create session on mount and start polling
+  useEffect(() => {
+    let mounted = true;
+
+    async function createSessionAndStart() {
+      try {
+        const resp = await fetch("https://9da51856e259.ngrok-free.app/sessions", {
+          method: "POST",
+        });
+        if (!resp.ok) throw new Error(`Failed to create session: ${resp.status}`);
+        const data = await resp.json();
+        if (!mounted) return;
+        const sid = data.session_id;
+        setSessionId(sid);
+
+        // initial fetch immediately
+        await fetchCurrentAndUpdateUI(sid);
+
+        // start polling every 10s (10000 ms)
+        pollingRef.current = setInterval(() => {
+          fetchCurrentAndUpdateUI(sid).catch((err) => {
+            // keep polling; optionally you can stop on repeated errors
+            console.error("Polling error:", err);
+          });
+        }, 10000);
+      } catch (err) {
+        console.error("Could not create session:", err);
+      }
+    }
+
+    createSessionAndStart();
+
+    return () => {
+      mounted = false;
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+    // empty deps -> runs once on full page load
+  }, []);
+
+  async function fetchCurrentAndUpdateUI(sid) {
+    if (!sid) return;
+    try {
+      const resp = await fetch(`https://9da51856e259.ngrok-free.app/sessions/${sid}/current`);
+      if (!resp.ok) {
+        console.warn("Failed to fetch current session data:", resp.status);
+        return;
+      }
+      const body = await resp.json();
+      // body: { order: {...}, customer: {...}, bookings: [...] }
+
+      // CUSTOMER
+      const cust = body.customer || {};
+      const name = safeString(cust.name ?? cust.full_name ?? cust.customer_name ?? "-");
+      const phone = safeString(cust.phone ?? cust.phone_number ?? cust.mobile ?? "-");
+      const address = safeString(cust.address ?? cust.addr ?? cust.location ?? "-");
+      setCustomer({ name, phone, address });
+
+      // ORDER: try multiple shapes
+      const order = body.order ?? {};
+      let lines = [];
+      // If order has items as array of {name, qty, price} or simple list
+      if (Array.isArray(order.items) && order.items.length > 0) {
+        lines = order.items.map((it) => {
+          const n = safeString(it.name ?? it.item ?? "-");
+          const q = it.qty ?? it.quantity ?? it.q ?? 1;
+          const p = it.price ?? it.cost ?? "";
+          return `${n}: ${q} qty${p ? ` - ${p}` : ""}`;
+        });
+      } else if (order?.lines && Array.isArray(order.lines) && order.lines.length > 0) {
+        lines = order.lines.map((l) => safeString(l));
+      } else if (Object.keys(order).length === 0) {
+        lines = ["-"];
+      } else {
+        // try to present some keys
+        const entries = Object.entries(order).slice(0, 5);
+        lines = entries.map(([k, v]) => `${k}: ${safeString(v)}`);
+      }
+      setOrderSummary({ lines });
+
+      // BOOKINGS: pick closest future booking
+      const bookings = Array.isArray(body.bookings) ? body.bookings : [];
+      const closest = findClosestFutureBooking(bookings);
+      if (closest) {
+        // attempt to find date/time, guests, location
+        const dateObj =
+          parseDateCandidate(closest.date) ??
+          parseDateCandidate(closest.datetime) ??
+          parseDateCandidate(closest.time) ??
+          parseDateCandidate(closest.start) ??
+          parseDateCandidate(closest.when) ??
+          null;
+        const dateStr = dateObj ? formatDateTimeForUI(dateObj) : "-";
+        const guests = safeString(closest.guests ?? closest.num_guests ?? closest.party ?? "-");
+        const location = safeString(
+          closest.location ?? closest.venue ?? closest.place ?? closest.address ?? "-"
+        );
+        setBookingUI({ date: dateStr, guests, location });
+      } else {
+        // no future bookings
+        setBookingUI({ date: "-", guests: "-", location: "-" });
+      }
+    } catch (err) {
+      console.error("Error fetching session current:", err);
     }
   }
 
@@ -62,21 +243,13 @@ export default function Assistant() {
 
             <div className="flex flex-col items-center">
               <div className="mb-4">
-                <MicButton listening={listening} onToggle={toggleListening} size="lg" />
+                {/* VoiceCallManager handles microphone, VAD, WS and playback */}
+                <VoiceCallManager sessionId={sessionId} />
               </div>
+            </div>
 
-              <div className="min-h-[1.5rem]">
-                {listening ? (
-                  <div className="flex items-center gap-3 text-amber-700 font-mono">
-                    <span className="inline-block w-3 h-3 rounded-full bg-emerald-400 shadow-lg animate-pulse" />
-                    <span className="text-lg">{formatTime(elapsedMs)}</span>
-                  </div>
-                ) : disconnectNotice ? (
-                  <div className="text-amber-600 font-medium transition-opacity">{disconnectNotice}</div>
-                ) : (
-                  <div className="text-gray-500">Ready — press to start</div>
-                )}
-              </div>
+            <div className="mt-4 text-sm text-gray-500">
+              <div>Session: {sessionId ?? <em>creating…</em>}</div>
             </div>
           </div>
         </section>
@@ -90,26 +263,45 @@ export default function Assistant() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Customer Details</h3>
-              <p><strong>Name:</strong> Ali</p>
-              <p><strong>Phone Number:</strong> 0311223344</p>
-              <p><strong>Address:</strong> 36th Street</p>
+              <p>
+                <strong>Name:</strong> {customer.name}
+              </p>
+              <p>
+                <strong>Phone Number:</strong> {customer.phone}
+              </p>
+              <p>
+                <strong>Address:</strong> {customer.address}
+              </p>
             </div>
 
             <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Order Details</h3>
-              <p><strong>Burger:</strong> 2 qty - 1200 PKR</p>
-              <p><strong>Fries:</strong> 1 qty - 300 PKR</p>
+              {orderSummary.lines.length === 0 ? (
+                <p>-</p>
+              ) : (
+                orderSummary.lines.map((l, i) => (
+                  <p key={i} className="text-sm">
+                    {l}
+                  </p>
+                ))
+              )}
             </div>
 
             <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Booking Details</h3>
-              <p><strong>Date:</strong> 2026-01-15 3:00</p>
-              <p><strong>Guests:</strong> 4</p>
-              <p><strong>Location:</strong> Tipu Sultan</p>
+              <p>
+                <strong>Date:</strong> {bookingUI.date}
+              </p>
+              <p>
+                <strong>Guests:</strong> {bookingUI.guests}
+              </p>
+              <p>
+                <strong>Location:</strong> {bookingUI.location}
+              </p>
             </div>
           </div>
         </div>
       </section>
     </div>
-  )
+  );
 }
